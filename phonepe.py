@@ -427,15 +427,27 @@ def transaction_aggregated(state, year, quarter):
         query = f'''SELECT Transaction_type, SUM(Transaction_count) AS Transaction_count, SUM(Transaction_amount) AS Transaction_amount
                     FROM agg_transaction
                     WHERE Year = {year} AND Quarter = {quarter}
-                    GROUP BY Transaction_type'''
+                    GROUP BY Transaction_type
+                    ORDER BY Transaction_count DESC'''
     else:
         query = f'''SELECT Transaction_type, SUM(Transaction_count) AS Transaction_count, SUM(Transaction_amount) AS Transaction_amount
                     FROM agg_transaction
                     WHERE State = "{state}" AND Year = {year} AND Quarter = {quarter}
-                    GROUP BY Transaction_type'''
+                    GROUP BY Transaction_type
+                    ORDER BY Transaction_count DESC'''
     my_cursor.execute(query)
     data = [i for i in my_cursor.fetchall()]
     trans_agg = pd.DataFrame(data, columns=my_cursor.column_names, index=range(1, len(data) + 1))
+
+    trans_agg_pie = px.pie(trans_agg,
+                           names = "Transaction_type",
+                           values = "Transaction_count",
+                           hover_name = "Transaction_type",
+                           hover_data = {"Transaction_type" : False},
+                           title = f"Category Proportions for {st.session_state["state"]} in Q{quarter} {year}")
+    trans_agg_pie.update_layout(title_font={"size": 20, "color": "violet"})
+    trans_agg_pie.update_layout(hoverlabel=dict(font=dict(size=14)))
+
     trans_count = int(trans_agg["Transaction_count"].sum())
     trans_amt = int(trans_agg["Transaction_amount"].sum())
     avg_trans_val = int(trans_amt / trans_count)
@@ -444,7 +456,7 @@ def transaction_aggregated(state, year, quarter):
     trans_count = format_number(trans_count)
     trans_amt = format_number(trans_amt / 10 ** 7)
     avg_trans_val = format_number(avg_trans_val)
-    return trans_agg, trans_count, trans_amt, avg_trans_val
+    return trans_agg, trans_agg_pie, trans_count, trans_amt, avg_trans_val
 
 
 # Top 10 States Under Transaction
@@ -763,7 +775,7 @@ if selected == "Phonepe Data Visualization":
     with col22:
         if st.session_state["types"] == "Transaction":
             with st.expander(":violet[**Transaction**]", expanded=True):
-                categories, T_count, T_amount, T_avg_val = transaction_aggregated(st.session_state["state"], int(st.session_state["year"]),
+                categories, categories_pie, T_count, T_amount, T_avg_val = transaction_aggregated(st.session_state["state"], int(st.session_state["year"]),
                                                                                   int(st.session_state["quarter"]))
 
                 st.write(f"All PhonePe transactions (UPI + Cards + Wallets) :blue[{T_count}]")
@@ -772,12 +784,15 @@ if selected == "Phonepe Data Visualization":
                 st.markdown("---------------------------")
 
                 st.markdown(":violet[**Categories**]")
-                st.write(f"Recharge & bill payments :blue[{categories.loc[1, "Transaction_count"]}]")
-                st.write(f"Peer-to-peer payments :blue[{categories.loc[2, "Transaction_count"]}]")
-                st.write(f"Merchant payments :blue[{categories.loc[3, "Transaction_count"]}]")
-                st.write(f"Financial Services :blue[{categories.loc[4, "Transaction_count"]}]")
-                st.write(f"Others :blue[{categories.loc[5, "Transaction_count"]}]")
+                st.write(f"{categories.loc[1, "Transaction_type"]} :blue[{categories.loc[1, "Transaction_count"]}]")
+                st.write(f"{categories.loc[2, "Transaction_type"]} :blue[{categories.loc[2, "Transaction_count"]}]")
+                st.write(f"{categories.loc[3, "Transaction_type"]} :blue[{categories.loc[3, "Transaction_count"]}]")
+                st.write(f"{categories.loc[4, "Transaction_type"]} :blue[{categories.loc[4, "Transaction_count"]}]")
+                st.write(f"{categories.loc[5, "Transaction_type"]} :blue[{categories.loc[5, "Transaction_count"]}]")
                 st.markdown("---------------------------")
+
+                with col21:
+                    st.plotly_chart(categories_pie, use_container_width=True)
 
                 if st.session_state["state"] == "All India":
                     T_tab1, T_tab2, T_tab3 = st.tabs(["**States**", "**Districts**", "**Pincode**"])
